@@ -1,13 +1,55 @@
 // App.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import Modal from "./components/Modal.jsx";
 import AddBook from "./components/AddBook.jsx";
 import Book from "./book.jsx";
+import booksData from "../data/books.json";
 
 function App() {
   // เริ่มต้นไม่มีหนังสือ
   const [books, setBooks] = useState([]);
+
+  // Load books from JSON file on component mount and fetch author info
+  useEffect(() => {
+    const loadBooksWithAuthors = async () => {
+      if (booksData && Array.isArray(booksData)) {
+        // First, initialize books with defaults
+        const booksWithDefaults = booksData.map((book) => ({
+          ...book,
+          selected: false,
+          image: book.image || "https://via.placeholder.com/150x200?text=Book",
+          author: book.author || null, // Will be fetched from API
+        }));
+        setBooks(booksWithDefaults);
+
+        // Then fetch author information from API for each book
+        const booksWithAuthors = await Promise.all(
+          booksWithDefaults.map(async (book) => {
+            if (book.author) return book; // Already has author
+            
+            try {
+              const response = await fetch(
+                `https://api.itbook.store/1.0/books/${book.isbn13}`
+              );
+              if (response.ok) {
+                const bookData = await response.json();
+                return {
+                  ...book,
+                  author: bookData.authors || "Unknown Author",
+                };
+              }
+            } catch (error) {
+              console.error(`Error fetching author for ${book.isbn13}:`, error);
+            }
+            return { ...book, author: "Unknown Author" };
+          })
+        );
+        setBooks(booksWithAuthors);
+      }
+    };
+    loadBooksWithAuthors();
+  }, []);
 
   // toggle การเลือก (เลือกได้ทีละเล่ม)
   const toggleSelect = (isbn13) => {
@@ -26,7 +68,8 @@ function App() {
       ...newBook,
       isbn13: crypto.randomUUID(),
       selected: false,
-      image: newBook.image || "https://via.placeholder.com/150x200?text=Book",
+      // ใช้ url จากฟอร์มเป็น image source
+      image: newBook.url || newBook.image || "https://via.placeholder.com/150x200?text=Book",
       price: newBook.price || "$0.00",
       url: newBook.url || "#",
     };
